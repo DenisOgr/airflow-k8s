@@ -1,0 +1,5 @@
+env.env
+_airflow/
+usefull_commands.sh
+.idea/
+*.pyc
