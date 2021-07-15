@@ -37,6 +37,22 @@ spec:
             mountPath: /opt/airflow/dags
           - name: db
             mountPath: /opt/airflow/db
+      - image: k8s.gcr.io/git-sync/git-sync:v3.3.4
+        name: git-sync
+        env:
+          - name: GIT_SYNC_REPO
+            value: https://github.com/DenisOgr/airflow-k8s.git
+          - name: GIT_SYNC_BRANCH
+            value: master
+          - name: GIT_SYNC_DEPTH
+            value: '0'
+          - name: GIT_SYNC_ROOT
+            value: /opt/airflow/dags
+          - name: GIT_SYNC_WAIT
+            value: '60'
+        volumeMounts:
+          - name: dags
+            mountPath: /opt/airflow/dags
       initContainers:
         - image: apache/airflow:2.1.2-python3.9
           name: init-db
