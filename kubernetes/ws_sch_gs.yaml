@@ -14,31 +14,55 @@ spec:
       labels:
         app: airflow-webserver
     spec:
+      serviceAccountName: airflow-run-pods
+      automountServiceAccountToken: true
+      securityContext:
+        fsGroup: 65533 # to make SSH key readable
       containers:
       - image: apache/airflow:2.1.2-python3.9
         name: webserver
         command: ["airflow", "webserver"]
         env:
           - name: AIRFLOW__CORE__SQL_ALCHEMY_CONN
-            value: sqlite:////opt/airflow/db/airflow.db
+            valueFrom:
+              secretKeyRef:
+                name: db-conn
+                key: conn
         volumeMounts:
           - name: dags
             mountPath: /opt/airflow/dags
           - name: db
             mountPath: /opt/airflow/db
+          - name: airflow-cfg
+            mountPath: /opt/airflow/airflow.cfg
+            subPath: airflow.cfg
+          - name: worker-template
+            mountPath: /opt/airflow/worker_template.yaml
+            subPath: worker_template.yaml
       - image: apache/airflow:2.1.2-python3.9
         name: schduler
         command: ["airflow", "scheduler"]
         env:
           - name: AIRFLOW__CORE__SQL_ALCHEMY_CONN
-            value: sqlite:////opt/airflow/db/airflow.db
+            valueFrom:
+              secretKeyRef:
+                name: db-conn
+                key: conn
         volumeMounts:
           - name: dags
             mountPath: /opt/airflow/dags
           - name: db
             mountPath: /opt/airflow/db
+          - name: airflow-cfg
+            mountPath: /opt/airflow/airflow.cfg
+            subPath: airflow.cfg
+          - name: worker-template
+            mountPath: /opt/airflow/worker_template.yaml
+            subPath: worker_template.yaml
       - image: k8s.gcr.io/git-sync/git-sync:v3.3.4
         name: git-sync
+        securityContext:
+          runAsUser: 65533 # git-sync user
         env:
           - name: GIT_SYNC_REPO
             value: https://github.com/DenisOgr/airflow-k8s.git
@@ -50,30 +74,69 @@ spec:
             value: /opt/airflow/dags
           - name: GIT_SYNC_WAIT
             value: '60'
+          - name: GIT_SYNC_SSH
+            value: 'true'
+          - name: GIT_KNOWN_HOSTS
+            value: 'true'
+          - name: GIT_SSH_KNOWN_HOSTS_FILE
+            value: /etc/git-secret/known_hosts
+          - name: GIT_SSH_KEY_FILE
+            value: /etc/git-secret/ssh
         volumeMounts:
           - name: dags
             mountPath: /opt/airflow/dags
+          - name: git-secret
+            mountPath: /etc/git-secret
+            readOnly: true
       initContainers:
         - image: apache/airflow:2.1.2-python3.9
           name: init-db
           command: [ "airflow", "db", "init"]
           env:
             - name: AIRFLOW__CORE__SQL_ALCHEMY_CONN
-              value: sqlite:////opt/airflow/db/airflow.db
+              valueFrom:
+                secretKeyRef:
+                  name: db-conn
+                  key: conn
           volumeMounts:
             - name: db
               mountPath: /opt/airflow/db
+            - name: airflow-cfg
+              mountPath: /opt/airflow/airflow.cfg
+              subPath: airflow.cfg
+            - name: worker-template
+              mountPath: /opt/airflow/worker_template.yaml
+              subPath: worker_template.yaml
         - image: apache/airflow:2.1.2-python3.9
           name: create-user
           command: [ "airflow", "users", "create", "-e", "admin@admin.com", "-f", "admin", "-l", "admin", "-p", "admin", "-r", "Admin", "-u", "admin"]
           env:
             - name: AIRFLOW__CORE__SQL_ALCHEMY_CONN
-              value: sqlite:////opt/airflow/db/airflow.db
+              valueFrom:
+                secretKeyRef:
+                  name: db-conn
+                  key: conn
           volumeMounts:
             - name: db
               mountPath: /opt/airflow/db
+            - name: airflow-cfg
+              mountPath: /opt/airflow/airflow.cfg
+              subPath: airflow.cfg
+            - name: worker-template
+              mountPath: /opt/airflow/worker_template.yaml
+              subPath: worker_template.yaml
       volumes:
         - name: db
           emptyDir: {}
         - name: dags
           emptyDir: {}
+        - name: airflow-cfg
+          configMap:
+            name: airflow-conf
+        - name: worker-template
+          configMap:
+            name: worker-template
+        - name: git-secret
+          secret:
+            secretName: git-creds
+            defaultMode: 0400

@@ -3,3 +3,5 @@ _airflow/
 usefull_commands.sh
 .idea/
 *.pyc
+prod-db.env
+sa.json
