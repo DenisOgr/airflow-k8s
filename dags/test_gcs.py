@@ -1,7 +1,7 @@
 from airflow import DAG
 from airflow.utils.dates import days_ago
 from airflow.operators.python import PythonOperator
-from dags.dag_utils.gcs_utils import list_blobs
+from dag_utils.gcs_utils import list_blobs
 default_args = {
     'owner': 'airflow',
     'depends_on_past': False,
